@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Workspace categories">
+  <defs>
+    <linearGradient id="wsc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B7BF0"/>
+      <stop offset="1" stop-color="#2453C6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#wsc-bg)"/>
+  <path d="M14 24.5A4.5 4.5 0 0 1 18.5 20h8.2l3.6 4.3h14.2A4.5 4.5 0 0 1 49 28.8v13.7A4.5 4.5 0 0 1 44.5 47h-26A4.5 4.5 0 0 1 14 42.5z"
+        fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M14.6 28.6h34.8" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="23.4" cy="36.4" r="2.5" fill="#FFFFFF"/>
+  <circle cx="31.9" cy="36.4" r="2.5" fill="#FFFFFF" opacity="0.78"/>
+  <circle cx="40.4" cy="36.4" r="2.5" fill="#FFFFFF" opacity="0.55"/>
+</svg>

@@ -1,0 +1,51 @@
+{
+  "name": "dsh-workspace-categories",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Category groups for DeepSeek Harness workspaces — group the flat project list into named sections right in the sidebar.",
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "author": "burningg",
+  "homepage": "https://github.com/burningg/dsh-workspace-categories",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/burningg/dsh-workspace-categories.git"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "sidebar",
+    "workspace",
+    "categories"
+  ]
+}
