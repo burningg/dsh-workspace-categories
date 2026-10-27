@@ -1,6 +1,6 @@
 # dsh-workspace-categories
 
-> **给 DeepSeek Harness 的工作区加分类。** 把挤在一起的项目列表分成「客户 / 硬件 / 内部工具」这样的分组，直接在侧边栏按分类浏览，拖一下就能改归类。
+> **给 DeepSeek Harness 的工作区加分类。** 把平铺的项目列表分成自定义分组，直接在侧边栏按分类浏览，拖一下就能改归类。
 >
 > **Category groups for DeepSeek Harness workspaces.** Split a flat project list into named sections, browse them right in the sidebar, and re-file by drag and drop.
 
@@ -10,21 +10,21 @@
 
 ## 它解决什么
 
-Harness 的侧边栏只按「工作区」这一层分组：十几个项目平铺成一条长列表，找东西全靠记名字。这个插件在工作区之上再加一层**你自己定义的分类**，让列表变成
+Harness 的侧边栏默认只有「工作区」这一层：项目一多就平铺成一条长列表，找东西只能靠记名字。这个插件在工作区之上再加一层**自定义分类**，让列表变成
 
 ```
-▾ 客户项目                    3
-    📁 IBP                    12
-    📁 IBP-UI                  4
-    📁 Youl                    1
-▾ 硬件                        2
-    📁 PCB                     8
-    📁 cad-滁州                2
-▾ 内部工具                    3
-    📁 ToughRig-AI-Service     6
-    📁 ToughRig-Infrastructure 3
-    📁 workbuddy-manager-v2.8.3 2
-▾ 未分类                      2
+▾ 产品                      3
+    📁 项目一                 12
+    📁 项目二                  4
+    📁 项目三                  1
+▾ 研发                      2
+    📁 项目四                  8
+    📁 项目五                  2
+▾ 归档                      3
+    📁 项目六                  6
+    📁 项目七                  3
+    📁 项目八                  2
+▾ 未分类                    2
 ```
 
 分类和文件夹层级无关，可以任意组合；同一分类内的顺序仍由 Harness 的工作区顺序决定。
@@ -40,17 +40,17 @@ Harness 的侧边栏只按「工作区」这一层分组：十几个项目平铺
 
 ## 安装
 
-这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），不是 npm 包。在 Harness 的插件页安装时使用：
+这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），不是 npm 包。在 Harness 的插件页安装时，填本仓库的地址：
 
 ```
-github:burningg/dsh-workspace-categories
+github:<your-account>/dsh-workspace-categories
 ```
 
 也可以把它加进 profile 的依赖后启用：
 
 ```bash
 # ~/.dsh/profiles/<profile>/package.json → dependencies
-"dsh-workspace-categories": "github:burningg/dsh-workspace-categories"
+"dsh-workspace-categories": "github:<your-account>/dsh-workspace-categories"
 ```
 
 启用后侧边栏图标栏会出现「工作区分类」，左侧列表在有至少一个分类后自动变成分组视图。
@@ -58,7 +58,7 @@ github:burningg/dsh-workspace-categories
 ## 用法
 
 1. 点侧边栏的 **工作区分类**（文件夹 + 三个点的图标），打开分类管理
-2. **新建分类**，起个名字（例如 `客户项目`、`硬件`）
+2. **新建分类**，起个名字（例如 `产品`、`研发`、`归档`）
 3. 回到侧边栏，把工作区行**拖进**对应分组；或在管理面板里用下拉框选
 4. 不想看分组时，把面板里的开关 **「侧边栏按分类分组」** 关掉，原生列表立刻回来
 
@@ -81,7 +81,7 @@ Harness 的工作区浏览区（`sidebar.workspaces`）是一个单占位槽，�
 
 ## 兼容性
 
-在 DeepSeek Harness `0.2.1-rc.3` 上开发与验证：插件行加载、`main` / `sidebar.panellist` / `sidebar.workspaces` 三个扩展点的注册均通过 `cordis_inspect_query` 确认。视觉上依赖 Harness 的 `--dsw-alias-*` 主题令牌，浅色 / 深色主题通用；行高与字号取自 Harness 自带的 `WorkspaceBrowser.module.css` / `Rows.module.css`，以便和原生列表一致。
+面向 DeepSeek Harness `0.2.x` 开发与验证：插件行加载、`main` / `sidebar.panellist` / `sidebar.workspaces` 三个扩展点的注册均已确认。视觉上依赖 Harness 的 `--dsw-alias-*` 主题令牌，浅色 / 深色主题通用；行高与字号取自 Harness 自带的 `WorkspaceBrowser.module.css` / `Rows.module.css`，以便和原生列表一致。
 
 ## 结构
 
