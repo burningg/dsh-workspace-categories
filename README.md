@@ -43,17 +43,23 @@ Harness 的侧边栏默认只有「工作区」这一层：项目一多就平铺
 这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），不是 npm 包。在 Harness 的插件页安装时，填本仓库的地址：
 
 ```
-github:<your-account>/dsh-workspace-categories
+github:burningg/dsh-workspace-categories
 ```
 
 也可以把它加进 profile 的依赖后启用：
 
 ```bash
 # ~/.dsh/profiles/<profile>/package.json → dependencies
-"dsh-workspace-categories": "github:<your-account>/dsh-workspace-categories"
+"dsh-workspace-categories": "github:burningg/dsh-workspace-categories"
 ```
 
 启用后侧边栏图标栏会出现「工作区分类」，左侧列表在有至少一个分类后自动变成分组视图。
+
+> **装完要重启 DSH。** 插件的包路径在进程启动时就已确定，安装或更换来源后必须重启才会生效。
+>
+> **不要用 `link:` 装一个之后会被移动的目录。** `link:` 会把仓库的绝对路径写进 profile 依赖；之后移动或改名该目录，DSH 仍按旧路径读包，插件页就会报
+> `包元信息错误：Plugin metadata for dsh-workspace-categories: Error: ENOENT: no such file or directory, scandir '<旧路径>/locale'`。
+> 换回 `github:` 安装（或用 `dsh plugin --profile <profile> remove` 后再装）并重启即可恢复。
 
 ## 用法
 
