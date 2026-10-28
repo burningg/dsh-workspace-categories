@@ -49,5 +49,12 @@
     "categories",
     "shortcut",
     "recent-chats"
-  ]
+  ],
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bugs": {
+    "url": "https://github.com/burningg/dsh-workspace-categories/issues"
+  }
 }
