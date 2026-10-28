@@ -818,12 +818,21 @@ window.__ModuleLoader__.load({
 
     const mru = createMru();
 
-    /** Overlay state: closed, or an open list with one highlighted row. */
+    /**
+     * Overlay state: closed, or an open list with one highlighted row.
+     *
+     * `getSnapshot` is the shape the slot renderer binds a `hooks` source to —
+     * it calls `source.getSnapshot()` and `source.subscribe()`. Without that
+     * exact method the projected `useSwitcher` hook throws while rendering and
+     * the card silently never appears, so both names are exposed.
+     */
     function createSwitcherState() {
       let state = { open: false, rows: [], index: 0, currentId: null };
       const listeners = new Set();
+      const get = () => state;
       return {
-        get: () => state,
+        get,
+        getSnapshot: get,
         subscribe(listener) {
           listeners.add(listener);
           return () => { listeners.delete(listener); };
@@ -836,6 +845,7 @@ window.__ModuleLoader__.load({
     }
 
     const switcher = createSwitcherState();
+    const CLOSED_SWITCHER = { open: false, rows: [], index: 0, currentId: null };
 
     const SWITCH_CSS = `
 .wscs-scrim{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.16);animation:wscs-fade .1s ease-out}
@@ -890,6 +900,23 @@ window.__ModuleLoader__.load({
         }
         return '';
       };
+      /**
+       * The conversations the sidebar would show: only ids that belong to a
+       * workspace. The catalog also carries subagent-origin sessions and other
+       * rows with no main view of their own — switching to one of those lands on
+       * a view that never finishes loading, so they stay out of the list.
+       * `null` means the workspace snapshot is not ready yet; then nothing is
+       * filtered rather than hiding every row.
+       */
+      const memberIds = () => {
+        const items = workspaceItems();
+        if (items.length === 0) return null;
+        const ids = new Set();
+        for (const row of items) {
+          for (const id of row.sessionIds || []) ids.add(id);
+        }
+        return ids;
+      };
       /** The conversation the main view is currently showing, if any. */
       const activeSessionId = () => {
         const snapshot = sessionSnapshot();
@@ -905,10 +932,12 @@ window.__ModuleLoader__.load({
         const snapshot = sessionSnapshot();
         const byId = (snapshot && snapshot.byId) || {};
         const archived = archivedIds();
+        const members = memberIds();
         const rows = [];
         for (const id of mru.get()) {
           const summary = byId[id];
           if (!summary || archived.has(id)) continue;
+          if (members !== null && !members.has(id)) continue;
           const title = summary.title && String(summary.title).trim() !== ''
             ? summary.title
             : t('switcher.untitled');
@@ -943,6 +972,10 @@ window.__ModuleLoader__.load({
 
       const activate = (id) => {
         if (typeof id !== 'string' || id === '') return;
+        // The card may have been open while the catalog changed under it.
+        const snapshot = sessionSnapshot();
+        const byId = (snapshot && snapshot.byId) || {};
+        if (!byId[id]) return;
         mru.touch(id);
         try { showConversation(); } catch { /* ignore */ }
         try {
@@ -999,8 +1032,10 @@ window.__ModuleLoader__.load({
           const byId = (snapshot && snapshot.byId) || {};
           const ids = (snapshot && Array.isArray(snapshot.ids)) ? snapshot.ids : Object.keys(byId);
           const archived = archivedIds();
+          const members = memberIds();
           const recent = ids
             .filter((id) => byId[id] && byId[id].blank !== true && !archived.has(id))
+            .filter((id) => members === null || members.has(id))
             .sort((a, b) => (byId[b].updatedAt || 0) - (byId[a].updatedAt || 0));
           mru.merge(recent);
         }
@@ -1093,9 +1128,9 @@ window.__ModuleLoader__.load({
     /** The `shell.overlay` entry: one HUD card, nothing while it is closed. */
     function RecentSwitcherOverlay(props) {
       const t = React.useMemo(() => createTranslate(props.t), [props.t]);
-      const state = typeof props.useSwitcher === 'function'
+      const state = (typeof props.useSwitcher === 'function'
         ? props.useSwitcher((value) => value)
-        : { open: false, rows: [], index: 0, currentId: null };
+        : null) || CLOSED_SWITCHER;
       const listRef = React.useRef(null);
       // A long list keeps the highlight visible while the modifier is held.
       React.useEffect(() => {
