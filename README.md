@@ -46,13 +46,7 @@ Harness 的侧边栏默认只有「工作区」这一层：项目一多就平铺
 
 ## 安装
 
-这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），已发布到 npm。用一条命令装：
-
-```sh
-dsh plugin --profile web add @burningg/dsh-workspace-categories
-```
-
-不想走 npm 也可以直接从 GitHub 源码装（效果一样）：
+这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），一条命令从 GitHub 源码安装：
 
 ```sh
 dsh plugin --profile web add github:burningg/dsh-workspace-categories
@@ -62,7 +56,7 @@ dsh plugin --profile web add github:burningg/dsh-workspace-categories
 
 ```bash
 # ~/.dsh/profiles/<profile>/package.json → dependencies
-"@burningg/dsh-workspace-categories": "^2.0.0"
+"@burningg/dsh-workspace-categories": "github:burningg/dsh-workspace-categories"
 ```
 
 启用后侧边栏图标栏会出现「工作区分类」，左侧列表在有至少一个分类后自动变成分组视图。
