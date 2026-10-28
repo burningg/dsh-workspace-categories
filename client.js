@@ -95,6 +95,7 @@ window.__ModuleLoader__.load({
         'appearance.categoryColorHint': 'Every category keeps its own accent — click the dot on a card to change it.',
         'list.workspaces': 'Workspaces',
         'list.search': 'Search chats…',
+        'list.collapseAll': 'Collapse all',
         'list.addWorkspace': 'Add workspace',
         'list.manage': 'Manage categories',
         'list.newChat': 'New chat',
@@ -171,6 +172,7 @@ window.__ModuleLoader__.load({
         'appearance.categoryColorHint': '每个分类有自己的强调色：点卡片上的色点就能改。',
         'list.workspaces': '工作区',
         'list.search': '搜索会话…',
+        'list.collapseAll': '全部收起',
         'list.addWorkspace': '添加工作区',
         'list.manage': '分类管理',
         'list.newChat': '新开对话',
@@ -517,6 +519,22 @@ window.__ModuleLoader__.load({
         h('path', {
           key: 'c',
           d: 'M9.5 6.8l4.9 5.2-4.9 5.2',
+          stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round',
+        }),
+      ]);
+    }
+
+    /** Fold the whole list: two upward chevrons, the inverse of expanding a tree. */
+    function CollapseAllIcon(size) {
+      return svg(size || 16, [
+        h('path', {
+          key: 'top',
+          d: 'M7 11L12 6l5 5',
+          stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round',
+        }),
+        h('path', {
+          key: 'bottom',
+          d: 'M7 18L12 13l5 5',
           stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round',
         }),
       ]);
@@ -1287,6 +1305,27 @@ window.__ModuleLoader__.load({
         const toggleGroup = (id) => setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
         const toggleWorkspace = (id) => setCollapsedWorkspaces((prev) => ({ ...prev, [id]: !prev[id] }));
 
+        /**
+         * One-click "collapse all": fold every category and every workspace, so
+         * the sidebar becomes a compact stack of group headers. There is no
+         * expand-all counterpart on purpose — each group and workspace opens
+         * from its own chevron. A live search forces matches open, so collapse
+         * clears the query first instead of silently doing nothing.
+         */
+        const collapseAll = () => {
+          if (trimmed !== '') setQuery('');
+          setCollapsedGroups(() => {
+            const next = {};
+            for (const group of groups) next[group.id] = true;
+            return next;
+          });
+          setCollapsedWorkspaces(() => {
+            const next = {};
+            for (const row of items) next[row.workspaceId] = true;
+            return next;
+          });
+        };
+
         const beginRename = (row) => {
           renameGuard.current = false;
           setMenuId(null);
@@ -1652,6 +1691,13 @@ window.__ModuleLoader__.load({
                   });
                 },
               }, SearchIcon(16)),
+              h('button', {
+                type: 'button',
+                className: 'wscb-iconbtn',
+                title: t('list.collapseAll'),
+                'aria-label': t('list.collapseAll'),
+                onClick: collapseAll,
+              }, CollapseAllIcon(16)),
               h('button', {
                 type: 'button',
                 className: 'wscb-iconbtn',
