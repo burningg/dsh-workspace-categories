@@ -1,9 +1,9 @@
 {
   "name": "dsh-workspace-categories",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Category groups for DeepSeek Harness workspaces — group the flat project list into named sections right in the sidebar.",
+  "description": "Category groups for DeepSeek Harness workspaces — group the flat project list into named sections, and jump between recent chats with Ctrl+Tab.",
   "icon": "./icon.svg",
   "license": "MIT",
   "exports": {
@@ -46,6 +46,8 @@
     "plugin",
     "sidebar",
     "workspace",
-    "categories"
+    "categories",
+    "shortcut",
+    "recent-chats"
   ]
 }

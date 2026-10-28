@@ -30,6 +30,8 @@ window.__ModuleLoader__.load({
     const SESSION_PAGE = 5;
     const FONT_MIN = 11;
     const FONT_MAX = 20;
+    const IS_MAC = typeof navigator !== 'undefined'
+      && /mac/i.test(String(navigator.platform || '') + ' ' + String(navigator.userAgent || ''));
 
     /**
      * Per-viewer styling for the three list levels. Sizes are px and stay inside
@@ -125,6 +127,13 @@ window.__ModuleLoader__.load({
         'list.archiveFailed': 'Could not archive: {message}',
         'list.untitled': 'Untitled',
         'list.noCategories': 'No categories yet — open Manage categories to create one.',
+        'switcher.title': 'Recent chats',
+        'switcher.hint': 'Recent chats: hold the modifier and tap Tab',
+        'switcher.hold': 'Hold {mod} · tap Tab',
+        'switcher.footer': 'Tab next · Shift+Tab previous · Esc cancel',
+        'switcher.current': 'Current',
+        'switcher.untitled': 'New chat',
+        'switcher.running': 'Running',
         'time.now': 'now',
         'time.min': '{n}m',
         'time.hour': '{n}h',
@@ -206,6 +215,13 @@ window.__ModuleLoader__.load({
         'list.archiveFailed': '归档失败：{message}',
         'list.untitled': '未命名',
         'list.noCategories': '还没有分类 —— 打开「分类管理」新建一个。',
+        'switcher.title': '最近会话',
+        'switcher.hint': '最近会话：按住修饰键连按 Tab',
+        'switcher.hold': '按住 {mod} · 连按 Tab',
+        'switcher.footer': 'Tab 下一个 · Shift+Tab 上一个 · Esc 取消',
+        'switcher.current': '当前',
+        'switcher.untitled': '新对话',
+        'switcher.running': '正在运行',
         'time.now': '刚刚',
         'time.min': '{n} 分钟',
         'time.hour': '{n} 小时',
@@ -601,6 +617,8 @@ window.__ModuleLoader__.load({
 .wsc-sub{margin:2px 0 0;font-size:13px;line-height:19px;color:var(--dsw-alias-label-secondary)}
 .wsc-grow{flex:1;min-width:0}
 .wsc-chip{flex:none;font-size:12px;line-height:18px;padding:1px 8px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.wsc-kbd{border:none;font-family:inherit;font-variant-numeric:tabular-nums;letter-spacing:.01em;cursor:pointer}
+.wsc-kbd:hover{background:var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary)}
 .wsc-toolbar{display:flex;align-items:center;gap:8px}
 .wsc-input{box-sizing:border-box;height:30px;border-radius:var(--dsw-radius-md);border:.5px solid var(--dsw-alias-border-l4);background:0 0;color:inherit;padding:0 8px;font-size:13px;line-height:18px;font-family:inherit;min-width:0}
 .wsc-input::placeholder{color:var(--dsw-alias-label-tertiary)}
@@ -736,9 +754,414 @@ window.__ModuleLoader__.load({
 .wscb-drop{box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));border-radius:var(--dsw-radius-md)}
 `;
 
+    // #region recent conversations switcher
+
+    /**
+     * Conversation recency, stored next to the grouping preference in the page's
+     * localStorage. `Ctrl+Tab` walks it the way an editor walks its open tabs:
+     * hold the modifier, tap Tab to move the highlight, release to land on it.
+     * Only ids are kept here — titles, workspaces and timestamps are always read
+     * back from the shipped Session catalog, so a rename or a new turn shows up
+     * without any extra bookkeeping.
+     */
+    const MRU_KEY = 'dsh.workspace-categories.mru.v1';
+    const MRU_LIMIT = 12;
+
+    function readMru() {
+      try {
+        const raw = window.localStorage.getItem(MRU_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((id) => typeof id === 'string' && id !== '').slice(0, MRU_LIMIT);
+      } catch {
+        return [];
+      }
+    }
+
+    function createMru() {
+      let ids = readMru();
+      const listeners = new Set();
+      const commit = () => {
+        try { window.localStorage.setItem(MRU_KEY, JSON.stringify(ids)); } catch { /* page-only order */ }
+        for (const listener of Array.from(listeners)) listener();
+      };
+      return {
+        get: () => ids,
+        subscribe(listener) {
+          listeners.add(listener);
+          return () => { listeners.delete(listener); };
+        },
+        /** Front the conversation the viewer just landed on. */
+        touch(id) {
+          if (typeof id !== 'string' || id === '') return;
+          const next = [id].concat(ids.filter((value) => value !== id)).slice(0, MRU_LIMIT);
+          if (next.length === ids.length && next.every((value, index) => value === ids[index])) return;
+          ids = next;
+          commit();
+        },
+        /**
+         * Append conversations this page has not seen yet, most recently active
+         * first. A viewer who never clicked a chat still gets a useful list, and
+         * the order of what they did open is never disturbed.
+         */
+        merge(list) {
+          if (!Array.isArray(list) || list.length === 0) return;
+          const known = new Set(ids);
+          const extra = list.filter((id) => !known.has(id));
+          if (extra.length === 0) return;
+          ids = ids.concat(extra).slice(0, MRU_LIMIT);
+          commit();
+        },
+      };
+    }
+
+    const mru = createMru();
+
+    /** Overlay state: closed, or an open list with one highlighted row. */
+    function createSwitcherState() {
+      let state = { open: false, rows: [], index: 0, currentId: null };
+      const listeners = new Set();
+      return {
+        get: () => state,
+        subscribe(listener) {
+          listeners.add(listener);
+          return () => { listeners.delete(listener); };
+        },
+        set(next) {
+          state = next;
+          for (const listener of Array.from(listeners)) listener();
+        },
+      };
+    }
+
+    const switcher = createSwitcherState();
+
+    const SWITCH_CSS = `
+.wscs-scrim{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.16);animation:wscs-fade .1s ease-out}
+.wscs-card{box-sizing:border-box;display:flex;flex-direction:column;width:440px;max-width:100%;max-height:100%;border-radius:14px;border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-primary);font-family:inherit;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.3),0 2px 8px rgba(0,0,0,.16);animation:wscs-rise .12s ease-out}
+.wscs-head{display:flex;align-items:baseline;gap:8px;flex:none;padding:12px 14px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.wscs-headtitle{font-size:13px;line-height:18px;font-weight:600}
+.wscs-hint{margin-left:auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}
+.wscs-list{flex:1;min-height:0;overflow-y:auto;padding:6px;scrollbar-gutter:stable}
+.wscs-row{box-sizing:border-box;position:relative;display:flex;align-items:center;gap:10px;min-height:46px;padding:6px 10px 6px 13px;border-radius:9px;cursor:pointer;user-select:none}
+.wscs-row-on{background:var(--dsw-alias-interactive-bg-hover)}
+.wscs-row-on:before{content:"";position:absolute;left:4px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--dsw-alias-brand-primary)}
+.wscs-mark{display:inline-flex;flex:none;width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--dsw-alias-border-l4)}
+.wscs-mark-run{background:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));box-shadow:none}
+.wscs-body{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.wscs-title{font-size:13.5px;line-height:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wscs-meta{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wscs-badge{flex:none;font-size:10px;line-height:16px;padding:0 6px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l4);color:var(--dsw-alias-label-secondary)}
+.wscs-foot{flex:none;padding:7px 14px 9px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}
+@keyframes wscs-fade{from{opacity:0}to{opacity:1}}
+@keyframes wscs-rise{from{opacity:0;transform:translateY(-4px) scale(.99)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.wscs-scrim,.wscs-card{animation:none}}
+`;
+
+    /**
+     * Owns recency tracking, the hold-modifier interaction, and the handoff to
+     * the shipped workspace service. Reads go through the Session and Workspace
+     * snapshots the app already keeps, so nothing is duplicated here.
+     */
+    function createRecentSwitcher(options) {
+      const { sessions, workspaces, openSession, showConversation, t } = options;
+      let lastActive = null;
+
+      const sessionSnapshot = () => {
+        try { return sessions.list.getSnapshot(); } catch { return null; }
+      };
+      const workspaceSnapshot = () => {
+        try { return workspaces.list.getSnapshot(); } catch { return null; }
+      };
+      const workspaceItems = () => {
+        const snapshot = workspaceSnapshot();
+        return snapshot && Array.isArray(snapshot.items) ? snapshot.items : [];
+      };
+      const archivedIds = () => {
+        const snapshot = workspaceSnapshot();
+        return new Set((snapshot && snapshot.archivedSessionIds) || []);
+      };
+      const workspaceNameOf = (sessionId) => {
+        for (const row of workspaceItems()) {
+          if ((row.sessionIds || []).indexOf(sessionId) >= 0) {
+            return row.title && row.title !== '' ? row.title : baseName(row.path);
+          }
+        }
+        return '';
+      };
+      /** The conversation the main view is currently showing, if any. */
+      const activeSessionId = () => {
+        const snapshot = sessionSnapshot();
+        const byId = (snapshot && snapshot.byId) || {};
+        for (const id of Object.keys(byId)) {
+          const summary = byId[id];
+          if (summary && summary.retainedBy && summary.retainedBy.mainView > 0) return id;
+        }
+        return null;
+      };
+
+      const buildRows = () => {
+        const snapshot = sessionSnapshot();
+        const byId = (snapshot && snapshot.byId) || {};
+        const archived = archivedIds();
+        const rows = [];
+        for (const id of mru.get()) {
+          const summary = byId[id];
+          if (!summary || archived.has(id)) continue;
+          const title = summary.title && String(summary.title).trim() !== ''
+            ? summary.title
+            : t('switcher.untitled');
+          rows.push({
+            id,
+            title,
+            workspace: workspaceNameOf(id),
+            time: relativeTime(summary.updatedAt, t),
+            running: summary.running === true,
+          });
+        }
+        return rows;
+      };
+
+      const close = () => {
+        if (switcher.get().open) switcher.set({ open: false, rows: [], index: 0, currentId: null });
+      };
+
+      const move = (delta) => {
+        const state = switcher.get();
+        if (!state.open || state.rows.length === 0) return;
+        const index = (state.index + delta + state.rows.length) % state.rows.length;
+        if (index === state.index) return;
+        switcher.set({ ...state, index });
+      };
+
+      const focusRow = (index) => {
+        const state = switcher.get();
+        if (!state.open || index < 0 || index >= state.rows.length || index === state.index) return;
+        switcher.set({ ...state, index });
+      };
+
+      const activate = (id) => {
+        if (typeof id !== 'string' || id === '') return;
+        mru.touch(id);
+        try { showConversation(); } catch { /* ignore */ }
+        try {
+          const pending = openSession(id);
+          if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+        } catch { /* ignore */ }
+      };
+
+      /**
+       * Open on the neighbour of the current conversation, matching the editor
+       * habit: the first Tab previews the previous chat, `Shift+Tab` the other
+       * direction. Nothing opens when there is no other conversation to reach.
+       */
+      const open = (backwards) => {
+        const rows = buildRows();
+        if (rows.length < 2) return false;
+        const current = activeSessionId();
+        const at = rows.findIndex((row) => row.id === current);
+        const anchor = at >= 0 ? at : 0;
+        const index = backwards
+          ? (anchor - 1 + rows.length) % rows.length
+          : (anchor + 1) % rows.length;
+        switcher.set({ open: true, rows, index, currentId: current });
+        return true;
+      };
+
+      const commit = () => {
+        const state = switcher.get();
+        if (!state.open) return;
+        const row = state.rows[state.index];
+        close();
+        if (row) activate(row.id);
+      };
+
+      const choose = (id) => {
+        const state = switcher.get();
+        if (!state.open) return;
+        const row = state.rows.find((item) => item.id === id);
+        close();
+        if (row) activate(row.id);
+      };
+
+      const cancel = () => close();
+
+      /** Follow the main view so the list always starts from what is on screen. */
+      const sync = () => {
+        const active = activeSessionId();
+        if (active !== null && active !== lastActive) {
+          lastActive = active;
+          mru.touch(active);
+        }
+        if (mru.get().length < MRU_LIMIT) {
+          const snapshot = sessionSnapshot();
+          const byId = (snapshot && snapshot.byId) || {};
+          const ids = (snapshot && Array.isArray(snapshot.ids)) ? snapshot.ids : Object.keys(byId);
+          const archived = archivedIds();
+          const recent = ids
+            .filter((id) => byId[id] && byId[id].blank !== true && !archived.has(id))
+            .sort((a, b) => (byId[b].updatedAt || 0) - (byId[a].updatedAt || 0));
+          mru.merge(recent);
+        }
+      };
+
+      const detach = sessions.list.subscribe(sync);
+      sync();
+
+      /**
+       * Capture phase, so the overlay owns Tab before the composer, the editor
+       * or the shipped shortcut dispatcher sees it. Only `Ctrl+Tab` is claimed:
+       * plain Tab, `Cmd+Tab` (the system switcher) and every other chord pass
+       * through untouched.
+       */
+      const onKeyDown = (event) => {
+        if (event.altKey || event.metaKey) return;
+        if (event.key === 'Tab') {
+          const isOpen = switcher.get().open;
+          // Plain Tab outside the switcher keeps moving focus as usual.
+          if (!isOpen && !event.ctrlKey) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (!isOpen) {
+            open(event.shiftKey === true);
+            return;
+          }
+          move(event.shiftKey ? -1 : 1);
+          return;
+        }
+        if (!switcher.get().open) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          cancel();
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          commit();
+          return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'PageDown') {
+          event.preventDefault();
+          event.stopPropagation();
+          move(1);
+          return;
+        }
+        if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+          event.preventDefault();
+          event.stopPropagation();
+          move(-1);
+        }
+      };
+
+      /** Releasing the modifier is the commit gesture, exactly like an editor. */
+      const onKeyUp = (event) => {
+        if (!switcher.get().open) return;
+        if (event.key === 'Control' || event.key === 'Meta') commit();
+      };
+
+      /** Losing the window (another app, a system dialog) drops the pending switch. */
+      const onBlur = () => {
+        if (switcher.get().open) close();
+      };
+
+      window.addEventListener('keydown', onKeyDown, true);
+      window.addEventListener('keyup', onKeyUp, true);
+      window.addEventListener('blur', onBlur);
+
+      return {
+        choose,
+        focusRow,
+        cancel,
+        /** Open from the panel header, for viewers who would rather click. */
+        toggle() {
+          if (switcher.get().open) close();
+          else open(false);
+        },
+        dispose() {
+          close();
+          detach();
+          window.removeEventListener('keydown', onKeyDown, true);
+          window.removeEventListener('keyup', onKeyUp, true);
+          window.removeEventListener('blur', onBlur);
+        },
+      };
+    }
+
+    /** The `shell.overlay` entry: one HUD card, nothing while it is closed. */
+    function RecentSwitcherOverlay(props) {
+      const t = React.useMemo(() => createTranslate(props.t), [props.t]);
+      const state = typeof props.useSwitcher === 'function'
+        ? props.useSwitcher((value) => value)
+        : { open: false, rows: [], index: 0, currentId: null };
+      const listRef = React.useRef(null);
+      // A long list keeps the highlight visible while the modifier is held.
+      React.useEffect(() => {
+        const list = listRef.current;
+        if (!list || typeof list.querySelector !== 'function') return;
+        const active = list.querySelector('[data-active="true"]');
+        if (active && typeof active.scrollIntoView === 'function') {
+          active.scrollIntoView({ block: 'nearest' });
+        }
+      }, [state.open, state.index]);
+      if (!state.open || state.rows.length === 0) return null;
+      const mod = IS_MAC ? 'Control' : 'Ctrl';
+      return h('div', {
+        className: 'wscs-scrim',
+        onMouseDown: (event) => {
+          if (event.target === event.currentTarget) props.cancel();
+        },
+      },
+        h('style', { key: 'css' }, SWITCH_CSS),
+        h('div', {
+          className: 'wscs-card',
+          role: 'dialog',
+          'aria-label': t('switcher.title'),
+        },
+          h('div', { className: 'wscs-head' },
+            h('span', { className: 'wscs-headtitle' }, t('switcher.title')),
+            h('span', { className: 'wscs-hint' }, t('switcher.hold', { mod })),
+          ),
+          h('div', { className: 'wscs-list', role: 'listbox', ref: listRef },
+            state.rows.map((row, index) => h('div', {
+              key: row.id,
+              role: 'option',
+              'aria-selected': index === state.index,
+              'data-active': index === state.index ? 'true' : undefined,
+              className: 'wscs-row' + (index === state.index ? ' wscs-row-on' : ''),
+              onMouseEnter: () => props.focusRow(index),
+              onMouseDown: (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                props.choose(row.id);
+              },
+            },
+              h('span', {
+                className: 'wscs-mark' + (row.running ? ' wscs-mark-run' : ''),
+                title: row.running ? t('switcher.running') : undefined,
+              }),
+              h('span', { className: 'wscs-body' },
+                h('span', { className: 'wscs-title' }, row.title),
+                h('span', { className: 'wscs-meta' },
+                  [row.workspace, row.time].filter((value) => value !== '').join(' · ')),
+              ),
+              row.id === state.currentId
+                ? h('span', { className: 'wscs-badge' }, t('switcher.current'))
+                : null,
+            )),
+          ),
+          h('div', { className: 'wscs-foot' }, t('switcher.footer')),
+        ),
+      );
+    }
+
+    // #endregion
+
     // #region category panel
 
-    function createPanel(services) {
+    function createPanel(services, showSwitcherHint, onOpenSwitcher) {
       return function WorkspaceCategoriesPanel(props) {
         const t = React.useMemo(() => createTranslate(props.t), [props.t]);
         const useWorkspaces = props.useWorkspaces;
@@ -1158,6 +1581,17 @@ window.__ModuleLoader__.load({
                 h('p', { className: 'wsc-sub' }, t('panel.subtitle')),
               ),
               h('span', { className: 'wsc-chip' }, t('panel.count', { n: items.length })),
+              showSwitcherHint === true
+                ? h('button', {
+                  type: 'button',
+                  className: 'wsc-chip wsc-kbd',
+                  title: t('switcher.hint'),
+                  'aria-label': t('switcher.hint'),
+                  onClick: () => {
+                    if (typeof onOpenSwitcher === 'function') onOpenSwitcher();
+                  },
+                }, IS_MAC ? '⌃Tab' : 'Ctrl+Tab')
+                : null,
             ),
             h('div', { className: 'wsc-toolbar' },
               h('input', {
@@ -1922,8 +2356,50 @@ window.__ModuleLoader__.load({
         openInVscode: (path) => openInVscode(path),
       };
 
-      const Panel = createPanel(services);
+      /**
+       * Recent-conversation switcher. The Session catalog is read through the
+       * composed service rather than declared in `inject`: a composition that
+       * lacks it should still get the categories, just without `Ctrl+Tab`.
+       */
+      let sessionCatalog = null;
+      try { sessionCatalog = ctx.get('sessions'); } catch { sessionCatalog = null; }
+      if (!sessionCatalog) {
+        try { sessionCatalog = ctx.sessions; } catch { sessionCatalog = null; }
+      }
+      const canSwitch = sessionCatalog !== null
+        && sessionCatalog !== undefined
+        && sessionCatalog.list
+        && typeof sessionCatalog.list.getSnapshot === 'function';
+
+      const recentSwitcher = canSwitch
+        ? createRecentSwitcher({
+          sessions: sessionCatalog,
+          workspaces: ctx.workspaces,
+          openSession: services.openSession,
+          showConversation: services.showConversation,
+          t,
+        })
+        : null;
+
+      const Panel = createPanel(services, recentSwitcher !== null, () => {
+        if (recentSwitcher !== null) recentSwitcher.toggle();
+      });
       const Sidebar = createSidebarBrowser(services);
+
+      if (recentSwitcher !== null) {
+        ctx.effect(() => () => recentSwitcher.dispose(), 'workspace-categories: recent switcher');
+        ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'workspace-categories.recent-switcher',
+          locale: NS,
+          inject: () => ({
+            hooks: { switcher },
+            choose: (sessionId) => recentSwitcher.choose(sessionId),
+            focusRow: (index) => recentSwitcher.focusRow(index),
+            cancel: () => recentSwitcher.cancel(),
+          }),
+        }, RecentSwitcherOverlay)), 'workspace-categories: recent switcher overlay');
+      }
 
       ctx.effect(() => ctx.slots.inject('main', () => ctx.slots.register({
         name: 'main',

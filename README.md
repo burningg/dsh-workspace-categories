@@ -1,8 +1,8 @@
 # dsh-workspace-categories
 
-> **给 DeepSeek Harness 的工作区加分类。** 把平铺的项目列表分成自定义分组，直接在侧边栏按分类浏览，拖一下就能改归类。
+> **给 DeepSeek Harness 的工作区加分类。** 把平铺的项目列表分成自定义分组，直接在侧边栏按分类浏览，拖一下就能改归类；顺手用 `Ctrl+Tab` 在最近会话之间来回切。
 >
-> **Category groups for DeepSeek Harness workspaces.** Split a flat project list into named sections, browse them right in the sidebar, and re-file by drag and drop.
+> **Category groups for DeepSeek Harness workspaces.** Split a flat project list into named sections, browse them right in the sidebar, re-file by drag and drop, and hop between recent chats with `Ctrl+Tab`.
 
 <sub>DeepSeek Harness 0.2.x · Web / Desktop · MIT</sub>
 
@@ -38,6 +38,7 @@ Harness 的侧边栏默认只有「工作区」这一层：项目一多就平铺
 - **三层视觉区分**：分类是一条中性的分组底 + 14px 加粗，工作区是正文色 14px，会话再小一号、用次级灰并缩进挂在工作区下面，一眼能看出谁属于谁；分类名默认用正文色，想要配色可以在外观里打开「分类名用强调色」或给「分组底色」选个颜色
 - **可调外观**：面板工具栏的「外观」里能分别调三层的字号、工作区 / 会话的文字颜色、分组 / 卡片 / 面板底色，还能切换分类名是否用强调色；每个分类的颜色点直接点开改，一键恢复默认
 - **搜索**：按工作区名、路径、会话标题过滤
+- **最近会话切换**：像编辑器切标签页那样按 `Ctrl+Tab`（macOS 上是 `Control+Tab`）在最近打开的会话之间跳：按住修饰键连按 `Tab` 翻列表，松开就切过去；`Shift+Tab` 反着走，`Esc` 放弃
 - **用 VS Code 打开**：工作区 `⋯` 菜单里一键把该工作区目录交给本机 VS Code。宿主先按系统登记的「能打开文件夹」应用列表找 VS Code（macOS 走 Launch Services，所以装在 `/Applications` 之外也能找到），找不到再退回宿主自带的 open-in-app 启动目录；路径由宿主校验通过后才启动，没装 VS Code 会直接提示而不是静默失败
 - **保留的操作**：打开工作区 / 打开会话 / 新开对话 / 工作区 ⋯ 菜单（打开所属目录、用 VS Code 打开、重命名、删除工作区）/ 添加工作区（系统目录框）/ 归档会话 / 搜索
 
@@ -72,6 +73,30 @@ github:burningg/dsh-workspace-categories
 4. 列表太长时点侧边栏右上角的 **收起**（双箭头向上）：全部分类和工作区一起折起来，只留分组标题；之后点某个分组或工作区的箭头单独展开
 5. 不想看分组时，把面板里的开关 **「侧边栏按分类分组」** 关掉，原生列表立刻回来
 6. 嫌层级不够清楚就点工具栏的 **外观**：三层字号、工作区 / 会话颜色、各种底色都在那里，改完立刻生效；卡片左边的色点就是该分类的颜色
+7. 想回到刚才那个对话，按住 `Control`（Windows 上是 `Ctrl`）连按 `Tab`：中间会浮出一张「最近会话」卡片，松开修饰键就切过去
+
+## 最近会话切换
+
+打开过的会话按使用顺序排一份历史，`Ctrl+Tab` 就在这份历史里走——和 VS Code 切标签页是同一个手感：
+
+| 操作 | 结果 |
+| --- | --- |
+| 按住 `Ctrl`（macOS `Control`）再按 `Tab` | 浮出最近会话卡片，高亮落在**上一个**会话上 |
+| 继续按 `Tab` / `Shift+Tab` | 在列表里向下 / 向上移动高亮 |
+| 松开 `Ctrl` | 切到当前高亮的会话 |
+| `Esc` | 关掉卡片，什么也不切 |
+| 方向键 ↑ / ↓、`PageUp` / `PageDown`、`Enter` | 卡片打开时的等效操作 |
+| 鼠标悬停 / 点击 | 悬停改高亮，点击直接切过去 |
+
+- 只接管 `Ctrl+Tab` 和 `Ctrl+Shift+Tab` 两个组合：普通 `Tab`、`Cmd+Tab`（系统应用切换）以及其它按键都原样放行；在输入框里打字也不受影响
+- 顺序跟着主视图走：你在侧边栏、搜索或卡片里打开哪个会话，它就会被提到最前面；当前正在看的会话带一个「当前」标记
+- 列表只显示还能打开的会话：已归档的不会出现，正在跑的那条左边是实心蓝点，还没起名的会话显示为「新对话」
+- 每条显示标题、所属工作区、相对时间；标题、工作区、时间都实时读 Harness 自己的会话目录，改名或新消息立刻反映，插件不另存一份
+- 历史上限 12 条；第一次使用时用「最近活跃」补齐，之后按你的实际切换顺序调整
+- 只有一个能打开的会话时按 `Ctrl+Tab` 不会有反应（没有可切换的目标）
+- 分类面板右上角有个 `Ctrl+Tab` 小胶囊：鼠标停上去是这条提示，点它也能打开同一张卡片；宿主没提供会话目录时它不显示，功能也自动关闭（其余功能照常）
+
+> **浏览器里的 `Ctrl+Tab` 由浏览器自己接管**，网页拿不到这个组合（桌面版 DSH 是 Electron，可以正常用）。在浏览器里可以用面板右上角那个小胶囊打开同一张卡片；桌面端不受影响。
 
 ## 和原生列表的关系
 
@@ -86,22 +111,22 @@ Harness 的工作区浏览区（`sidebar.workspaces`）是一个单占位槽，�
 
 ## 数据
 
-分类、归类关系、侧边栏开关和外观设置都存在当前页面的 `localStorage`（`dsh.workspace-categories.v2`，会从 v1 自动迁移）：
+分类、归类关系、侧边栏开关和外观设置都存在当前页面的 `localStorage`（`dsh.workspace-categories.v2`，会从 v1 自动迁移）；最近会话的顺序单独存在 `dsh.workspace-categories.mru.v1`，里面只有会话 id：
 
 - 不修改工作区注册、不移动文件、不改会话归属或工作目录
 - 外观只写 CSS 变量（`--wsc-cat-size` / `--wsc-ws-color` / `--wsc-cat-bg` 等），不改 Harness 的主题
-- 换浏览器或清站点数据会丢分类；工作区本身不受影响
+- 换浏览器或清站点数据会丢分类和最近会话顺序；工作区、会话本身不受影响
 
 ## 兼容性
 
-面向 DeepSeek Harness `0.2.x` 开发与验证：插件行加载、`main` / `sidebar.panellist` / `sidebar.workspaces` 三个扩展点的注册均已确认。视觉上依赖 Harness 的 `--dsw-alias-*` 主题令牌，浅色 / 深色主题通用；行高与字号取自 Harness 自带的 `WorkspaceBrowser.module.css` / `Rows.module.css`，以便和原生列表一致。
+面向 DeepSeek Harness `0.2.x` 开发与验证：插件行加载、`main` / `sidebar.panellist` / `sidebar.workspaces` 三个扩展点的注册均已确认；最近会话卡片挂在 `shell.overlay` 上，数据读 `sessions.list` 与 `workspaces.list` 两个快照，宿主没有提供会话目录时这部分自动关闭。视觉上依赖 Harness 的 `--dsw-alias-*` 主题令牌，浅色 / 深色主题通用；行高与字号取自 Harness 自带的 `WorkspaceBrowser.module.css` / `Rows.module.css`，以便和原生列表一致。
 
 ## 结构
 
 | 文件 | 作用 |
 | --- | --- |
 | `index.js` | Host 侧空壳，只提供 Loader 行，让浏览器半可被组合下发 |
-| `client.js` | 全部界面与状态：分类面板（`main`）、侧边栏图标（`sidebar.panellist`）、分类侧边栏（`sidebar.workspaces`） |
+| `client.js` | 全部界面与状态：分类面板（`main`）、侧边栏图标（`sidebar.panellist`）、分类侧边栏（`sidebar.workspaces`）、最近会话卡片（`shell.overlay`） |
 | `cordis.patch.yml` | 插入 `workspace-categories` 这一行 |
 | `locale/*.json` | 插件列表里的标题与描述 |
 | `icon.svg` | 插件图标 |
