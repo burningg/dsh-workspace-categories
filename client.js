@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-workspace-categories',
+  id: '@burningg/dsh-workspace-categories',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

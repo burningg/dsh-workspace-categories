@@ -6,6 +6,8 @@
 
 <sub>DeepSeek Harness 0.2.x · Web / Desktop · MIT</sub>
 
+[![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/plugins/burningg/dsh-workspace-categories)
+
 ---
 
 ## 它解决什么
@@ -44,17 +46,23 @@ Harness 的侧边栏默认只有「工作区」这一层：项目一多就平铺
 
 ## 安装
 
-这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），不是 npm 包。在 Harness 的插件页安装时，填本仓库的地址：
+这是一个 Harness **bundle**（`dsh.bundle.patch` + 浏览器半），已发布到 npm。用一条命令装：
 
-```
-github:burningg/dsh-workspace-categories
+```sh
+dsh plugin --profile web add @burningg/dsh-workspace-categories
 ```
 
-也可以把它加进 profile 的依赖后启用：
+不想走 npm 也可以直接从 GitHub 源码装（效果一样）：
+
+```sh
+dsh plugin --profile web add github:burningg/dsh-workspace-categories
+```
+
+也可以手工写进 profile 的依赖后启用：
 
 ```bash
 # ~/.dsh/profiles/<profile>/package.json → dependencies
-"dsh-workspace-categories": "github:burningg/dsh-workspace-categories"
+"@burningg/dsh-workspace-categories": "^2.0.0"
 ```
 
 启用后侧边栏图标栏会出现「工作区分类」，左侧列表在有至少一个分类后自动变成分组视图。
@@ -62,8 +70,8 @@ github:burningg/dsh-workspace-categories
 > **装完要重启 DSH。** 插件的包路径在进程启动时就已确定，安装或更换来源后必须重启才会生效。
 >
 > **不要用 `link:` 装一个之后会被移动的目录。** `link:` 会把仓库的绝对路径写进 profile 依赖；之后移动或改名该目录，DSH 仍按旧路径读包，插件页就会报
-> `包元信息错误：Plugin metadata for dsh-workspace-categories: Error: ENOENT: no such file or directory, scandir '<旧路径>/locale'`。
-> 换回 `github:` 安装（或用 `dsh plugin --profile <profile> remove` 后再装）并重启即可恢复。
+> `包元信息错误：Plugin metadata for @burningg/dsh-workspace-categories: Error: ENOENT: no such file or directory, scandir '<旧路径>/locale'`。
+> 换回 npm / `github:` 安装（或用 `dsh plugin --profile <profile> remove` 后再装）并重启即可恢复。
 
 ## 用法
 
@@ -116,6 +124,14 @@ Harness 的工作区浏览区（`sidebar.workspaces`）是一个单占位槽，�
 - 不修改工作区注册、不移动文件、不改会话归属或工作目录
 - 外观只写 CSS 变量（`--wsc-cat-size` / `--wsc-ws-color` / `--wsc-cat-bg` 等），不改 Harness 的主题
 - 换浏览器或清站点数据会丢分类和最近会话顺序；工作区、会话本身不受影响
+
+## 权限与外部服务
+
+- **不联网**：没有遥测、没有远程请求、不调用任何第三方 API；全部逻辑都在浏览器半
+- **只写页面本地存储**：分类、归类、开关、外观与最近会话顺序，都只存在当前页面的 `localStorage`
+- **会启动本机程序的两处**：「打开所属目录」和「用 VS Code 打开」。两者都由宿主（DSH）校验路径后再启动，插件自己拿不到也不执行命令
+- **不碰磁盘**：不移动、不删除、不改写任何项目文件；不改工作区注册与会话内容
+- Host 半（`index.js`）是空的 `apply()`，不注册任何宿主服务、工具或网络端口
 
 ## 兼容性
 

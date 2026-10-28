@@ -1,7 +1,6 @@
 {
-  "name": "dsh-workspace-categories",
-  "version": "1.2.1",
-  "private": true,
+  "name": "@burningg/dsh-workspace-categories",
+  "version": "2.0.0",
   "type": "module",
   "description": "Category groups for DeepSeek Harness workspaces — group the flat project list into named sections, and jump between recent chats with Ctrl+Tab.",
   "icon": "./icon.svg",
@@ -34,6 +33,10 @@
       ]
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "author": "burningg",
   "homepage": "https://github.com/burningg/dsh-workspace-categories",
   "repository": {
@@ -42,6 +45,7 @@
   },
   "keywords": [
     "dsh",
+    "dsh-plugin",
     "deepseek-harness",
     "plugin",
     "sidebar",
