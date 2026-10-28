@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
     const IconEdit = pickIcon('IconEditOutlineRegular');
     const IconTrash = pickIcon('IconTrashOutlineRegular');
     const IconFolderOpen = pickIcon('IconFolderOpenOutlineRegular');
+    const IconCode = pickIcon('IconCodeOutlineRegular');
 
     const NS = 'dsh-workspace-categories';
     const PANEL_ID = 'workspace-categories';
@@ -106,6 +107,10 @@ window.__ModuleLoader__.load({
         'list.openDirectoryNoPath': 'This workspace has no recorded folder path',
         'list.openDirectoryUnsupported': 'This host cannot open local folders',
         'list.openDirectoryFailed': 'Could not open the folder: {message}',
+        'list.openInVscode': 'Open in VS Code',
+        'list.openInVscodeUnavailable': 'VS Code was not found on this host',
+        'list.openInVscodeUnsupported': 'This host cannot launch VS Code',
+        'list.openInVscodeFailed': 'Could not open in VS Code: {message}',
         'list.deleteWorkspace': 'Delete workspace',
         'list.deleteWorkspaceConfirm': 'Remove "{name}" from the workspace list? Files and sessions are kept.',
         'list.cancel': 'Cancel',
@@ -183,6 +188,10 @@ window.__ModuleLoader__.load({
         'list.openDirectoryNoPath': '这个工作区没有记录目录路径',
         'list.openDirectoryUnsupported': '当前宿主无法打开本地目录',
         'list.openDirectoryFailed': '打开目录失败：{message}',
+        'list.openInVscode': '用 VS Code 打开',
+        'list.openInVscodeUnavailable': '没有在当前宿主上找到 VS Code',
+        'list.openInVscodeUnsupported': '当前宿主无法启动 VS Code',
+        'list.openInVscodeFailed': '用 VS Code 打开失败：{message}',
         'list.deleteWorkspace': '删除工作区',
         'list.deleteWorkspaceConfirm': '将把「{name}」从工作区列表中移除。文件夹与会话记录会保留。',
         'list.cancel': '取消',
@@ -469,6 +478,27 @@ window.__ModuleLoader__.load({
     function PlusIcon(size) {
       return svg(size || 14, [
         h('path', { key: 'p', d: 'M12 5.5v13M5.5 12h13', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }),
+      ]);
+    }
+
+    /** Editor glyph: a code file with the angle brackets of a source buffer. */
+    function CodeIcon(size) {
+      return svg(size || 14, [
+        h('path', {
+          key: 'file',
+          d: 'M13.4 3.4H6.9a2 2 0 0 0-2 2v13.2a2 2 0 0 0 2 2h10.2a2 2 0 0 0 2-2V9.1z',
+          stroke: 'currentColor', strokeWidth: 1.5, strokeLinejoin: 'round',
+        }),
+        h('path', {
+          key: 'fold',
+          d: 'M13.4 3.4v5.7h5.7',
+          stroke: 'currentColor', strokeWidth: 1.5, strokeLinejoin: 'round',
+        }),
+        h('path', {
+          key: 'brackets',
+          d: 'M10.5 12.4L8.6 14.5l1.9 2.1M13.5 12.4l1.9 2.1-1.9 2.1',
+          stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round',
+        }),
       ]);
     }
 
@@ -1411,11 +1441,48 @@ window.__ModuleLoader__.load({
           }
         };
 
+        /**
+         * Hand this workspace directory to the Host desktop so an installed VS
+         * Code window opens on it. The Host resolves the editor itself (Launch
+         * Services on macOS, registered handlers elsewhere) and answers with a
+         * reason when nothing can be launched, so this never guesses a path.
+         */
+        const openWorkspaceInVscode = (row) => {
+          const path = typeof row.path === 'string' ? row.path : '';
+          if (path === '') {
+            flash(t('list.openDirectoryNoPath'));
+            return;
+          }
+          const report = (result) => {
+            if (result && result.ok === true) return;
+            const reason = result && typeof result.reason === 'string' ? result.reason : '';
+            if (reason === 'noPath') flash(t('list.openDirectoryNoPath'));
+            else if (reason === 'unsupported') flash(t('list.openInVscodeUnsupported'));
+            else flash(t('list.openInVscodeUnavailable'));
+          };
+          const fail = (error) => flash(t('list.openInVscodeFailed', {
+            message: error && error.message ? error.message : String(error),
+          }));
+          let pending;
+          try {
+            pending = services.openInVscode(path);
+          } catch (error) {
+            fail(error);
+            return;
+          }
+          if (pending && typeof pending.then === 'function') pending.then(report).catch(fail);
+        };
+
         const rowMenuItems = () => [
           {
             id: 'directory',
             label: t('list.openDirectory'),
             icon: IconFolderOpen !== null ? h(IconFolderOpen, {}) : OpenExternalIcon(14),
+          },
+          {
+            id: 'vscode',
+            label: t('list.openInVscode'),
+            icon: IconCode !== null ? h(IconCode, {}) : CodeIcon(14),
           },
           {
             id: 'rename',
@@ -1538,6 +1605,7 @@ window.__ModuleLoader__.load({
                     onSelect: (id) => {
                       setMenuId(null);
                       if (id === 'directory') openWorkspaceDirectory(row);
+                      else if (id === 'vscode') openWorkspaceInVscode(row);
                       else if (id === 'rename') beginRename(row);
                       else if (id === 'delete') setDeleteId(row.workspaceId);
                     },
@@ -1739,25 +1807,104 @@ window.__ModuleLoader__.load({
       };
 
       /**
-       * Open one workspace directory in the Host file manager.
-       *
-       * The Host owns the only path that may touch the desktop: the Session
-       * Remote's `openWorkspacePath`, which re-verifies the directory against
-       * the composed filesystem and then launches Finder on macOS, File
-       * Explorer on Windows, or the XDG file manager on Linux. The Remote is
-       * resolved lazily so a composition without it still loads this panel;
-       * the answer is `true` only after the Host acknowledged the launch.
+       * Resolve the composed Session Remote lazily: a composition without it
+       * still loads this panel, it simply cannot reach the Host desktop.
        */
-      const openDirectory = async (path) => {
-        if (typeof path !== 'string' || path === '') return false;
+      const sessionRemote = () => {
         let session;
         try { session = ctx.get('remote.session'); } catch { session = undefined; }
         if (!session) {
           try { session = ctx.remote && ctx.remote.session; } catch { session = undefined; }
         }
+        return session || null;
+      };
+
+      /**
+       * Open one workspace directory in the Host file manager.
+       *
+       * The Host owns the only path that may touch the desktop: the Session
+       * Remote's `openWorkspacePath`, which re-verifies the directory against
+       * the composed filesystem and then launches Finder on macOS, File
+       * Explorer on Windows, or the XDG file manager on Linux. The answer is
+       * `true` only after the Host acknowledged the launch.
+       */
+      const openDirectory = async (path) => {
+        if (typeof path !== 'string' || path === '') return false;
+        const session = sessionRemote();
         if (!session || typeof session.openWorkspacePath !== 'function') return false;
         const result = await session.openWorkspacePath({ path });
         return Boolean(result && result.ok === true);
+      };
+
+      /**
+       * Recognise a VS Code handler from the Host's registered-application
+       * list. The identifier is a bundle path on macOS, an executable path on
+       * Windows, and a desktop-entry id on Linux, so both fields are checked.
+       */
+      const isVscodeApplication = (application) => {
+        if (!application || typeof application.id !== 'string') return false;
+        const name = typeof application.name === 'string' ? application.name : '';
+        const id = application.id;
+        return /visual studio code/i.test(name)
+          || /Visual Studio Code(?: - Insiders)?\.app$/i.test(id)
+          || /[\\/]Code(?: - Insiders)?\.exe$/i.test(id)
+          || /^code(?:-insiders)?(?:\.desktop)?$/i.test(id);
+      };
+
+      /**
+       * Ask the Host open-in-app catalog to launch one verified application.
+       * The route is served by the Host's own catalog launcher; a composition
+       * without it answers 404, which reads as "not available" here.
+       */
+      const openWithCatalogApp = async (app, path) => {
+        if (typeof fetch !== 'function') return false;
+        try {
+          const response = await fetch('open-in-app/open', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ app, path }),
+          });
+          return response.ok === true;
+        } catch {
+          return false;
+        }
+      };
+
+      /**
+       * Open one workspace directory in VS Code.
+       *
+       * Two Host routes are tried in order because neither covers every
+       * install on its own: the Session Remote's registered-handler list
+       * (Launch Services on macOS, the OS association query elsewhere) finds a
+       * VS Code that was installed outside the catalog's known application
+       * directories, while the open-in-app catalog launcher covers a plain
+       * system install. Both verify the directory on the Host before any
+       * process starts, so this never passes an unverified path to a launcher.
+       */
+      const openInVscode = async (path) => {
+        if (typeof path !== 'string' || path === '') return { ok: false, reason: 'noPath' };
+        const session = sessionRemote();
+        if (!session) return { ok: false, reason: 'unsupported' };
+        if (typeof session.workspacePathApplications === 'function'
+          && typeof session.openWorkspacePath === 'function') {
+          try {
+            const listed = await session.workspacePathApplications({ path });
+            const applications = listed && listed.ok === true && Array.isArray(listed.value)
+              ? listed.value
+              : [];
+            const candidates = applications.filter(isVscodeApplication);
+            const stable = candidates.find((application) => !/insiders/i.test(
+              application.id + ' ' + (typeof application.name === 'string' ? application.name : ''),
+            ));
+            const target = stable || candidates[0];
+            if (target) {
+              const opened = await session.openWorkspacePath({ path, application: target.id });
+              if (opened && opened.ok === true) return { ok: true };
+            }
+          } catch { /* the catalog launcher below is the fallback */ }
+        }
+        if (await openWithCatalogApp('vscode', path)) return { ok: true };
+        return { ok: false, reason: 'unavailable' };
       };
 
       const services = {
@@ -1772,6 +1919,7 @@ window.__ModuleLoader__.load({
         deleteWorkspace: (workspaceId) => ctx.workspaces.delete(workspaceId),
         archiveSession: (sessionId) => ctx.workspaces.archiveSession(sessionId),
         openDirectory: (path) => openDirectory(path),
+        openInVscode: (path) => openInVscode(path),
       };
 
       const Panel = createPanel(services);
