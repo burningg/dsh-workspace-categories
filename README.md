@@ -65,7 +65,7 @@ dsh plugin --profile web add github:burningg/dsh-workspace-categories
 >
 > **不要用 `link:` 装一个之后会被移动的目录。** `link:` 会把仓库的绝对路径写进 profile 依赖；之后移动或改名该目录，DSH 仍按旧路径读包，插件页就会报
 > `包元信息错误：Plugin metadata for @burningg/dsh-workspace-categories: Error: ENOENT: no such file or directory, scandir '<旧路径>/locale'`。
-> 换回 npm / `github:` 安装（或用 `dsh plugin --profile <profile> remove` 后再装）并重启即可恢复。
+> 换回 `github:` 安装（或用 `dsh plugin --profile <profile> remove` 后再装）并重启即可恢复。
 
 ## 用法
 
