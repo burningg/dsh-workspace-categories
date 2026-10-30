@@ -1132,6 +1132,36 @@ window.__ModuleLoader__.load({
         ? props.useSwitcher((value) => value)
         : null) || CLOSED_SWITCHER;
       const listRef = React.useRef(null);
+      /**
+       * Hover only takes the highlight over once the pointer really moved.
+       *
+       * The card opens centred, so the cursor is often already inside it. The
+       * browser then re-hit-tests the fresh DOM and dispatches `mouseenter` /
+       * `mousemove` for the row that just appeared under a stationary pointer.
+       * With hover wired to `focusRow` that silently moved the highlight onto
+       * whatever row the mouse happened to cover, so releasing `Ctrl` opened
+       * that chat instead of the neighbour of the current conversation — and
+       * `Ctrl+Tab` looked like it could not switch at all. A synthetic event
+       * repeats the previous coordinates, so only an event that reports a new
+       * position counts as a real move; the same guard covers the list
+       * scrolling under the cursor when the highlight moves by keyboard.
+       */
+      const pointer = React.useRef({ x: 0, y: 0, seen: false, moved: false });
+      React.useEffect(() => {
+        if (!state.open) {
+          pointer.current = { x: 0, y: 0, seen: false, moved: false };
+          return undefined;
+        }
+        const onMove = (event) => {
+          const last = pointer.current;
+          const moved = last.seen
+            && (Math.abs(event.clientX - last.x) + Math.abs(event.clientY - last.y) > 0);
+          pointer.current = { x: event.clientX, y: event.clientY, seen: true, moved };
+        };
+        // Capture, so the row handler sees the verdict for its own event.
+        window.addEventListener('mousemove', onMove, true);
+        return () => window.removeEventListener('mousemove', onMove, true);
+      }, [state.open]);
       // A long list keeps the highlight visible while the modifier is held.
       React.useEffect(() => {
         const list = listRef.current;
@@ -1166,7 +1196,13 @@ window.__ModuleLoader__.load({
               'aria-selected': index === state.index,
               'data-active': index === state.index ? 'true' : undefined,
               className: 'wscs-row' + (index === state.index ? ' wscs-row-on' : ''),
-              onMouseEnter: () => props.focusRow(index),
+              onMouseMove: (event) => {
+                // `movementX/Y` is zero for the synthetic event the browser
+                // sends when the DOM changes under a stationary pointer.
+                if (pointer.current.moved || event.movementX || event.movementY) {
+                  props.focusRow(index);
+                }
+              },
               onMouseDown: (event) => {
                 event.preventDefault();
                 event.stopPropagation();
